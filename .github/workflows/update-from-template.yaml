@@ -1,0 +1,95 @@
+name: "Update from template repository"
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Current repository branch to use as base"
+        default: "main"
+        required: true
+      delete-branch:
+        description: "Delete possibly existing template-fetch old branch? (yes/no)"
+        default: "yes"
+        required: true
+      merge-strategy:
+        description: "Merge strategy for fetching template changes (fastforward/squash)"
+        default: "squash"
+        required: true
+
+jobs:
+  update-and-pullrequest:
+    name: "Update & create Pull Request"
+    runs-on: ubuntu-latest
+    env:
+      BRANCH_NAME: "chore/update-from-template"
+      TEMPLATE_REPO: "https://github.com/David-Lor/generic-template.git"
+      TEMPLATE_BRANCH: "main"
+      TEMPLATE_UPSTREAM: "template"
+      COMMIT_MSG_FASTFORWARD_CONFLICTS: "Update from template: merge commit (conflicts)"
+      COMMIT_MSG_SQUASH: "chore: sync with template repository"
+      COMMIT_MSG_SQUASH_CONFLICTS: "Update from template: merge squash commit (conflicts)"
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+          ref: "${{ github.event.inputs.branch }}"
+
+      - name: "Delete remote branch"
+        if: ${{ github.event.inputs.delete-branch }}
+        run: |
+          git push origin --delete "${{ env.BRANCH_NAME }}" || true
+
+      - name: "Setup git user"
+        uses: fregante/setup-git-user@6cef8bf084d00360a293e0cc3c56e1b45d6502b8
+
+      - name: "Create new branch"
+        run: git checkout -b "${{ env.BRANCH_NAME }}"
+
+      - name: "Add template as upstream"
+        run: |
+          git remote add ${{ env.TEMPLATE_UPSTREAM }} ${{ env.TEMPLATE_REPO }}
+          git fetch --all
+
+      - name: "Merge from template upstream (fast-forward)"
+        if: ${{ github.event.inputs.merge-strategy == 'fastforward' }}
+        run: |
+          git merge ${{ env.TEMPLATE_UPSTREAM }}/${{ env.TEMPLATE_BRANCH }} --allow-unrelated-histories || (git add . && git commit -m "${{ env.COMMIT_MSG_FASTFORWARD_CONFLICTS }}")
+
+      - name: "Merge from template upstream (squash)"
+        if: ${{ github.event.inputs.merge-strategy == 'squash' }}
+        run: |
+          git merge ${{ env.TEMPLATE_UPSTREAM }}/${{ env.TEMPLATE_BRANCH }} --allow-unrelated-histories --squash && git add . && git commit -m "${{ env.COMMIT_MSG_SQUASH }}" || (git add . && git commit -m "${{ env.COMMIT_MSG_SQUASH_CONFLICTS }}")
+
+      - name: "Push changes"
+        run: |
+          git push -u origin "${{ env.BRANCH_NAME }}"
+
+      - name: "Create Pull Request"
+        id: pr
+        uses: devops-infra/action-pull-request@52dd66ddd77f35065769a60b946765eff141106f
+        with:
+          source_branch: ${{ env.BRANCH_NAME }}
+          target_branch: ${{ github.event.inputs.branch }}
+          title: "Sync with template repository"
+          body: "Fetch last changes from template repository"
+          label: "sync-template"
+          #github_token: ${{ secrets.PAT_TOKEN }}  # for private repositories
+
+      - name: "Extract PR number"
+        if: ${{ steps.pr.outputs.url }}
+        run: |
+          url="${{ steps.pr.outputs.url }}"
+          prId="${url##*/}"
+          test "$prId"
+          test "$prId" -eq "$prId"
+          echo "PR_ID=$prId" >> $GITHUB_ENV
+
+      - name: "Add comment on PR"
+        if: ${{ env.PR_ID }}
+        uses: peter-evans/create-or-update-comment@ad0c5a210255bfe327cd550bc3f11b49e318be3a
+        with:
+          issue-number: ${{ env.PR_ID }}
+          body: |
+            Remember to:
+            - **Solve conflicts**, if any
+            - **Squash and merge**
