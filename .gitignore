@@ -4,3 +4,5 @@
 *pycache*
 .pytest_cache
 *.pyc
+settings*.yaml
+!settings.template.yaml

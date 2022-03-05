@@ -1,0 +1,38 @@
+amqp:
+  # Full URI to the AMQP server, with authentication, virtualhost and optionally a client name (connection_name)
+  uri: amqp://user:password@localhost:5672/twitter?client_properties={'connection_name':'twitterscraper'}
+  exchange: ''
+  queues:
+    fetchpersist:
+      name: fetchpersist
+      persistent: true
+      # workers is used as AMQP prefetch-count, this means the amount of concurrent messages processed by each process deployed
+      workers: 10
+    persistedreview:
+      name: persistedreview
+      persistent: true
+      workers: 10
+
+twitter:
+  nitter_baseurl:
+    # Multiple nitter instances can be used. For each request, an instance is randomly chosen.
+    # The instances may be repeated to add priority to certain instances.
+    # For confirming removed tweets, all the instances are queried.
+    # PLEASE, self-host your own instance/s as well to avoid overloading public instances!
+    - https://nitter.net
+    - https://nitter.pussthecat.org
+    - https://nitter.eu
+    - https://nitter.namazso.eu
+    - https://nitter.hu
+    - https://nittereu.moomoo.me
+    - https://nitter.it
+  keys:
+    # Twitter API v2 keys
+    key: ...
+    secret: ...
+    token: ...
+
+persistence:
+  # Full URI to the SQL database.
+  # Only tested with Postgres, for other servers you may have to install the required Python client and modify the URI.
+  uri: postgresql+psycopg2://root:root@localhost:5432/root
