@@ -52,6 +52,7 @@ class TwitterSettings(pydantic.BaseModel):
     nitter_baseurl: List[pydantic.AnyHttpUrl] = pydantic.Field(default="https://nitter.net", min_items=1)
     """Base URL of a Nitter instance, used for scraping purposes. A list of URLs can be given, in which case
     a random instance will be picked each time"""
+    nitter_timeout: float = 10
 
     @pydantic.validator("nitter_baseurl", pre=True)
     def _nitter_baseurl_string_to_list(cls, v):

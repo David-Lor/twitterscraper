@@ -117,7 +117,7 @@ async def setup():
         api_secret=twitter_keys.secret,
         api_token=twitter_keys.token,
     ).set_singleton()
-    TwitterNitterClient(baseurls=settings.twitter.nitter_baseurl).set_singleton()
+    TwitterNitterClient(baseurls=settings.twitter.nitter_baseurl, timeout=settings.twitter.nitter_timeout).set_singleton()
     Repository(uri=settings.persistence.uri).set_singleton()
     AMQPClient(uri=settings.amqp.uri).set_singleton()
 

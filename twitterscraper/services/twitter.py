@@ -180,11 +180,12 @@ class TwitterNitterClient(Singleton):
     get: Callable[..., "TwitterNitterClient"]
     _nitter_baseurls: List[str]
 
-    def __init__(self, baseurls: List[str]):
+    def __init__(self, baseurls: List[str], timeout: float):
         if not baseurls:
             raise Exception("No baseurls given for TwitterNitterClient")
         self._nitter_baseurls = baseurls
         self._nitter_baseurls_unique = set(baseurls)
+        self._timeout = timeout
 
     def pick_nitter_baseurl(self) -> str:
         return random.choice(self._nitter_baseurls)
@@ -216,7 +217,7 @@ class TwitterNitterClient(Singleton):
             server = self.pick_nitter_baseurl()
         url_suffix = f"/status/status/{tweet_id}"
         url = urljoin(server, url_suffix)
-        r: requests.Response = await aioify(requests.get)(url)
+        r: requests.Response = await aioify(requests.get)(url, timeout=self._timeout)
 
         if r.status_code == 404 and "Tweet not found" in r.text:
             exists = False
@@ -259,7 +260,7 @@ class TwitterNitterClient(Singleton):
         while next_urlparams is not None:
             url = urljoin(nitter_baseurl, url_suffix + next_urlparams)
             print("Requesting Nitter", url)
-            r = await aioify(requests.get)(url)  # TODO use httpx
+            r = await aioify(requests.get)(url, timeout=self._timeout)  # TODO use httpx
             r.raise_for_status()
 
             scroll_tweets, next_urlparams = self._nitter_parse_tweets(

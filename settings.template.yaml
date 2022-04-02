@@ -26,6 +26,8 @@ twitter:
     - https://nitter.hu
     - https://nittereu.moomoo.me
     - https://nitter.it
+  # nitter_timeout: timeout for HTTP requests to nitter, in seconds, allows decimals
+  nitter_timeout: 10
   keys:
     # Twitter API v2 keys
     key: ...
