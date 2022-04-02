@@ -1,12 +1,12 @@
 amqp:
-  # Full URI to the AMQP server, with authentication, virtualhost and optionally a client name (connection_name)
+  # uri: Full URI to the AMQP server, with authentication, virtualhost and optionally a client name (connection_name)
   uri: amqp://user:password@localhost:5672/twitter?client_properties={'connection_name':'twitterscraper'}
   exchange: ''
   queues:
     fetchpersist:
       name: fetchpersist
       persistent: true
-      # workers is used as AMQP prefetch-count, this means the amount of concurrent messages processed by each process deployed
+      # workers: used as AMQP prefetch-count, this means the amount of concurrent messages processed by each process deployed
       workers: 10
     persistedreview:
       name: persistedreview
@@ -33,6 +33,9 @@ twitter:
     token: ...
 
 persistence:
-  # Full URI to the SQL database.
+  # uri: Full URI to the SQL database.
   # Only tested with Postgres, for other servers you may have to install the required Python client and modify the URI.
   uri: postgresql+psycopg2://root:root@localhost:5432/root
+  # save_jobs: if true, persist jobs metadata on DB. This can have a performance impact, as each job is persisted,
+  # and on completion its timetimestamp is updated.
+  save_jobs: true

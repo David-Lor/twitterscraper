@@ -111,6 +111,7 @@ class TasksSettings(pydantic.BaseModel):
 
 class PersistenceSettings(pydantic.BaseModel):
     uri: pydantic.AnyUrl
+    save_jobs: bool = False
 
 
 class MainSettings(pydantic.BaseModel, twitterscraper.utils.Singleton):

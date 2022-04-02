@@ -3,6 +3,7 @@ import asyncio
 from twitterscraper.services import Repository, AMQPClient
 from twitterscraper.models import BaseJob, JobHistoric
 from twitterscraper.utils import get_timestamp
+from twitterscraper.settings import MainSettings
 
 
 async def enqueue_jobs(*jobs: BaseJob, exchange: str, routingkey: str, persistent: bool):
@@ -15,9 +16,12 @@ async def enqueue_jobs(*jobs: BaseJob, exchange: str, routingkey: str, persisten
         ),
         save_jobs(*jobs)
     )
+    # TODO first save jobs, then enqueue, because jobs may be consumed before persisted
 
 
 async def save_jobs(*jobs: BaseJob):
+    if not MainSettings.get().persistence.save_jobs:
+        return
     repository = Repository.get()
     now_timestamp = get_timestamp()
     async with repository.session_async():
@@ -34,6 +38,8 @@ async def save_jobs(*jobs: BaseJob):
 
 
 async def set_job_finalized(job_id: str):
+    if not MainSettings.get().persistence.save_jobs:
+        return
     repository = Repository.get()
     async with repository.session_async():
         job_persisted = await repository.get_job_historic(job_id)
