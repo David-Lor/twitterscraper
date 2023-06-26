@@ -5,3 +5,6 @@ sqlalchemy[asyncio]==2.0.17
 asyncpg==0.27.0
 pydash==7.0.4
 ujson==5.8.0
+# TODO add pnytter latest version
+lxml==4.9.2
+python-dateutil==2.8.2

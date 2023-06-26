@@ -6,3 +6,6 @@
 *.pyc
 settings*.yaml
 !settings.template.yaml
+
+pnytter
+naivemigrations
