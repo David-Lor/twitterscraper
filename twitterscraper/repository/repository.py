@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 from typing import List
 
 import pydash
@@ -29,11 +30,18 @@ class Repository(Service):
     async def teardown(self):
         await self.engine.dispose()
 
-    async def get_user_by_id(self, userid: int) -> tables.Profile | None:
+    async def get_profile_by_id(self, userid: int) -> tables.Profile | None:
         async with self.sessionmaker() as session:
             query = sqlalchemy.select(tables.Profile).where(tables.Profile.userid == userid).limit(1)
             result = await session.execute(query)
             return result.scalars().one_or_none()
+
+    async def update_profile_last_scan(self, userid: int, date: datetime.date):
+        async with self.sessionmaker() as session:
+            query = sqlalchemy.update(tables.Profile).where(tables.Profile.userid == userid).\
+                values(lastscan_date=date)
+            await session.execute(query)
+            await session.commit()
 
     async def write_profile(self, profile: pnytter.TwitterProfile):
         async with self.sessionmaker() as session:
@@ -58,6 +66,9 @@ class Repository(Service):
             await session.commit()
 
     async def write_tweets(self, userid: int, tweets: List[pnytter.TwitterTweet]):
+        if not tweets:
+            return
+
         async with self.sessionmaker() as session:
             for bulk in pydash.chunk(tweets, Const.POSTGRES_BULK_INSERT_ROWS_LIMIT):
                 bulk_orm_dicts = [

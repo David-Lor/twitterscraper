@@ -14,5 +14,9 @@ class ScanProfileTweetsV1(BaseTask):
     date_from: datetime.date
     date_to: datetime.date  # inclusive
 
+    @property
+    def date_to_exclusive(self):
+        return self.date_to + datetime.timedelta(days=1)
+
 
 TASKS_CLASSES = [ScanProfileTweetsV1]
