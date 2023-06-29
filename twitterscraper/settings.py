@@ -18,6 +18,7 @@ class PostgresSettings(pydantic.BaseModel):
 
 class JobmanagerSettings(pydantic.BaseModel):
     postgres: PostgresSettings
+    workers: int = 1
 
 
 class RepositorySettings(pydantic.BaseSettings):

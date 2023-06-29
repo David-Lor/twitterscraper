@@ -58,8 +58,26 @@ class BaseApp(Runnable, abc.ABC):
 
 @command("worker")
 class CmdWorker(BaseApp):
+    def __init__(self):
+        super().__init__()
+        parser = argparse.ArgumentParser(
+            prog="Run task workers",
+            description="",
+            epilog="",
+        )
+        parser.add_argument("-w", "--workers", required=False, default=None)
+        args, _ = parser.parse_known_args()
+
+        if args.workers is not None:
+            self.workers_amount = int(args.workers)
+        else:
+            self.workers_amount = self.settings.jobmanager.workers
+
     async def run(self):
-        await self.jobmanager.app.run_worker_async()
+        print("Running", self.workers_amount, "workers")
+        await self.jobmanager.app.run_worker_async(
+            concurrency=self.workers_amount,
+        )
 
 
 @command("add-profile")
