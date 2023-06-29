@@ -121,7 +121,7 @@ class Repository(Service):
                 where(tables.Tweet.userid == userid).\
                 where(tables.Tweet.tweetid.in_(tweets_ids)).\
                 values(**{
-                    tables.Tweet.deletion_detected_on: now,
+                    tables.Tweet.deletion_detected_on.name: now,
                 })
 
             await session.execute(query)

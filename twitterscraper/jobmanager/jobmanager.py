@@ -35,7 +35,7 @@ class Jobmanager(Service):
     async def new_task(self, data: models.BaseTask) -> int:
         task_name, task_cls = None, None
         for _task_cls in models.TASKS_CLASSES:
-            if isinstance(data, _task_cls):
+            if type(data) == _task_cls:
                 task_name, task_cls = _task_cls.__name__, _task_cls
                 break
 
