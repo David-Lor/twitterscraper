@@ -8,6 +8,8 @@ from .. import utils
 from ..common import Service
 from ..settings import JobmanagerSettings
 
+CREATETASK_CONCURRENCY_LIMIT = 5
+
 
 class Jobmanager(Service):
 
@@ -30,7 +32,7 @@ class Jobmanager(Service):
     async def teardown(self):
         await self.app.close_async()
 
-    async def new_task(self, data: models.BaseTask):
+    async def new_task(self, data: models.BaseTask) -> int:
         task_name, task_cls = None, None
         for _task_cls in models.TASKS_CLASSES:
             if isinstance(data, _task_cls):
@@ -40,21 +42,36 @@ class Jobmanager(Service):
         if not task_name or not task_cls:
             raise Exception(f"Invalid task type {data.__class__}")
 
-        await self.app.tasks.get(task_name).defer_async(data_dict=utils.jsonable_encoder(data))
+        return await self.app.tasks.get(task_name).defer_async(data_dict=utils.jsonable_encoder(data))
 
     async def create_profile_initial_scan_tasks(self, profile: pnytter.TwitterProfile):
         date_start = profile.joined_datetime.date()
 
         # One task per month
         tasks = [
-            models.ScanProfileTweetsV1(
+            models.InitialScanProfileTweetsV1(
                 profile_id=profile.id,
                 date_from=datemonth.date_start,
-                date_to=datemonth.date_end_inclusive,
+                date_to_inc=datemonth.date_end_inclusive,
             )
             for datemonth in utils.daterange_by_month(date_start)
         ]
 
-        await utils.async_gather_limited(5, *[
+        await utils.async_gather_limited(CREATETASK_CONCURRENCY_LIMIT, *[
+            self.new_task(task) for task in tasks
+        ])
+
+    async def create_profile_rescan_tasks(self, userid: int, date_from: datetime.date, date_to_inc: datetime.date):
+        # One task per month
+        tasks = [
+            models.ReScanProfileTweetsV1(
+                profile_id=userid,
+                date_from=datemonth.date_start,
+                date_to_inc=datemonth.date_end_inclusive,
+            )
+            for datemonth in utils.daterange_by_month(date_from, date_to_inc)
+        ]
+
+        await utils.async_gather_limited(CREATETASK_CONCURRENCY_LIMIT, *[
             self.new_task(task) for task in tasks
         ])

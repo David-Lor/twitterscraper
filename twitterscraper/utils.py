@@ -43,14 +43,14 @@ class DateMonth(pydantic.BaseModel):
         return cls.from_isoformat(d.isoformat())
 
 
-def daterange_by_month(start_date: datetime.date, end_date: datetime.date | None = None):
-    """Iterate each month between two dates, yielding each found month, including the month of `end_date`.
-    If `end_date` is None, use current date.
+def daterange_by_month(start_date: datetime.date, end_date_inc: datetime.date | None = None):
+    """Iterate each month between two dates, yielding each found month, including the month of `end_date_inc`.
+    If `end_date_inc` is None, use current date.
     """
-    if end_date is None:
-        end_date = datetime.date.today()
+    if end_date_inc is None:
+        end_date_inc = datetime.date.today()
 
-    for date_iter in dateutil.rrule.rrule(dateutil.rrule.MONTHLY, dtstart=start_date, until=end_date):
+    for date_iter in dateutil.rrule.rrule(dateutil.rrule.MONTHLY, dtstart=start_date, until=end_date_inc):
         yield DateMonth.from_date(date_iter)
 
 

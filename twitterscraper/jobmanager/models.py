@@ -9,14 +9,18 @@ class BaseTask(pydantic.BaseModel):
     pass
 
 
-class ScanProfileTweetsV1(BaseTask):
+class InitialScanProfileTweetsV1(BaseTask):
     profile_id: int
     date_from: datetime.date
-    date_to: datetime.date  # inclusive
+    date_to_inc: datetime.date  # inclusive
 
     @property
     def date_to_exclusive(self):
-        return self.date_to + datetime.timedelta(days=1)
+        return self.date_to_inc + datetime.timedelta(days=1)
 
 
-TASKS_CLASSES = [ScanProfileTweetsV1]
+class ReScanProfileTweetsV1(InitialScanProfileTweetsV1):
+    pass
+
+
+TASKS_CLASSES = [InitialScanProfileTweetsV1, ReScanProfileTweetsV1]

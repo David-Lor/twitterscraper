@@ -1,2 +1,2 @@
 from .jobmanager import Jobmanager
-from .tasks import process_tasks
+from .tasks import setup_tasks

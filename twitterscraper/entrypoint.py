@@ -3,14 +3,14 @@ import abc
 import asyncio
 import atexit
 import argparse
+import datetime
 from typing import List, Type, Optional
-
-import pnytter
 
 from .jobmanager import tasks
 from .settings import load_settings
 from .jobmanager import Jobmanager
 from .repository import Repository
+from .twitterclient import Twitterclient
 from .common import Service, Runnable
 
 commands_classes = dict()
@@ -34,16 +34,13 @@ class BaseApp(Runnable, abc.ABC):
         self.repository = Repository(settings=self.settings.repository)
         self.services.append(self.repository)
 
-        self.pnytter = pnytter.Pnytter(
-            nitter_instances=self.settings.nitter.instances_str,
-            request_timeout=self.settings.nitter.request_timeout_seconds,
-            beautifulsoup_parser="lxml",
-        )
+        self.twitterclient = Twitterclient(settings=self.settings.nitter)
+        self.services.append(self.twitterclient)
 
-        tasks.process_tasks(
+        tasks.setup_tasks(
             app=self.jobmanager.app,
             repository=self.repository,
-            nitter=self.pnytter,
+            twitter=self.twitterclient,
         )
 
     async def setup(self):
@@ -70,8 +67,8 @@ class CmdAddProfile(BaseApp):
     def __init__(self):
         super().__init__()
         parser = argparse.ArgumentParser(
-            prog='ProgramName',
-            description='What the program does',
+            prog='Add Profile',
+            description='Add a new profile and schedule its initial scan.',
             epilog='Text at the bottom of help'
         )
         parser.add_argument("-u", "--username", required=True)
@@ -81,15 +78,57 @@ class CmdAddProfile(BaseApp):
 
     async def run(self):
         # TODO wrap on async: await loop.run_in_executor(...)
-        profile = self.pnytter.find_user(username=self.username)
+        profile = await self.twitterclient.find_user(username=self.username)
         if not profile:
             print(f"Profile @{self.username} not found!")
+            return
 
         await self.repository.write_profile(profile=profile)
         print(f"Profile @{self.username} persisted!")
 
         await self.jobmanager.create_profile_initial_scan_tasks(profile)
+        await self.repository.update_profile_last_scan(
+            userid=profile.id,
+            date=datetime.date.today(),
+        )
         print(f"Profile @{self.username} initial scan tasks created!")
+
+
+@command("rescan")
+class CmdRescan(BaseApp):
+    def __init__(self):
+        super().__init__()
+        parser = argparse.ArgumentParser(
+            prog='Re-Scan',
+            description='Schedule a re-scan of all or some of the profiles.',
+            epilog='Text at the bottom of help'
+        )
+        parser.add_argument("-u", "--username", action="append", required=False)  # case insensitive
+        args, _ = parser.parse_known_args()
+
+        self.usernames: list[str] | None = args.username
+
+    async def run(self):
+        profiles = await self.repository.get_profiles(filter_by_username=self.usernames)
+        print(f"{len(profiles)} profiles found:", {prof.userid: prof.username for prof in profiles})
+
+        today = datetime.date.today()
+        await asyncio.gather(*[
+            self.jobmanager.create_profile_rescan_tasks(
+                userid=profile.userid,
+                date_from=profile.lastscan_date,
+                date_to_inc=today,
+            )
+            for profile in profiles
+        ])
+
+        await asyncio.gather(*[
+            self.repository.update_profile_last_scan(
+                userid=profile.userid,
+                date=today
+            )
+            for profile in profiles
+        ])
 
 
 async def amain(cmd: Type[BaseApp]):
