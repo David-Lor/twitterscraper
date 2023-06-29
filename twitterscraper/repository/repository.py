@@ -32,7 +32,7 @@ class Repository(Service):
 
     async def get_profiles(self, filter_by_username: list[str] | None) -> list[tables.Profile]:
         async with self.sessionmaker() as session:
-            query = sqlalchemy.select(tables.Profile)
+            query = sqlalchemy.select(tables.Profile).where(tables.Profile.enabled == True)
             result = await session.execute(query)
             profiles = list(result.scalars().fetchall())
 
