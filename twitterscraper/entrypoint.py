@@ -95,7 +95,6 @@ class CmdAddProfile(BaseApp):
         self.username = args.username
 
     async def run(self):
-        # TODO wrap on async: await loop.run_in_executor(...)
         profile = await self.twitterclient.find_user(username=self.username)
         if not profile:
             print(f"Profile @{self.username} not found!")
@@ -122,9 +121,11 @@ class CmdRescan(BaseApp):
             epilog='Text at the bottom of help'
         )
         parser.add_argument("-u", "--username", action="append", required=False)  # case insensitive
+        parser.add_argument("-a", "--since-beginning", help="", action=argparse.BooleanOptionalAction)
         args, _ = parser.parse_known_args()
 
         self.usernames: list[str] | None = args.username
+        self.since_beginning: bool = args.since_beginning
 
     async def run(self):
         profiles = await self.repository.get_profiles(filter_by_username=self.usernames)
@@ -134,7 +135,7 @@ class CmdRescan(BaseApp):
         await asyncio.gather(*[
             self.jobmanager.create_profile_rescan_tasks(
                 userid=profile.userid,
-                date_from=profile.lastscan_date,
+                date_from=profile.joined_date if self.since_beginning else profile.lastscan_date,
                 date_to_inc=today,
             )
             for profile in profiles

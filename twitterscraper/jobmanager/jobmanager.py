@@ -44,6 +44,8 @@ class Jobmanager(Service):
 
         return await self.app.tasks.get(task_name).defer_async(data_dict=utils.jsonable_encoder(data))
 
+    # TODO Merge both tasks in one, no difference between them (maybe an attr on data to differentiate for logging purposes, but functionality is the same)
+
     async def create_profile_initial_scan_tasks(self, profile: pnytter.TwitterProfile):
         date_start = profile.joined_datetime.date()
 
