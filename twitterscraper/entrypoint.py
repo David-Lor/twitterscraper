@@ -38,7 +38,7 @@ class BaseApp(Runnable, abc.ABC):
         self.services.append(self.twitterclient)
 
         tasks.setup_tasks(
-            app=self.jobmanager.app,
+            jobmanager=self.jobmanager,
             repository=self.repository,
             twitter=self.twitterclient,
         )
@@ -148,6 +148,39 @@ class CmdRescan(BaseApp):
             )
             for profile in profiles
         ])
+
+
+@command("enqueue-archiveorg")
+class CmdEnqueueArchiveorg(BaseApp):
+    def __init__(self):
+        super().__init__()
+        parser = argparse.ArgumentParser(
+            prog="Enqueue Archive.org",
+            description="Enqueue Archive.org tweets for all the tweets not yet enqueued",
+            epilog=""
+        )
+        parser.add_argument("-u", "--username", action="append", required=False)  # case insensitive
+        args, _ = parser.parse_known_args()
+
+        self.usernames: list[str] | None = args.username
+
+    async def run(self):
+        profiles = await self.repository.get_profiles(filter_by_username=self.usernames)
+        profiles = [profile for profile in profiles if profile.archiveorg_enabled]
+        print("Profiles to run Archive.org on unscheduled tweets:", {prof.userid: prof.username for prof in profiles})
+
+        for profile in profiles:
+            for tweets_batch in await self.repository.get_tweets_not_archiveorg_enqueued(profile.userid, batch_size=100):
+                tweets_ids_batch = [tweet.tweetid for tweet in tweets_batch]
+                await self.jobmanager.create_tweets_archiveorg_tasks(
+                    userid=profile.userid,
+                    username=profile.username,
+                    tweets_ids=tweets_ids_batch,
+                )
+                await self.repository.update_archive_scheduled_tweets(
+                    userid=profile.userid,
+                    tweets_ids=tweets_ids_batch,
+                )
 
 
 async def amain(cmd: Type[BaseApp]):

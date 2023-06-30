@@ -23,4 +23,10 @@ class ReScanProfileTweetsV1(InitialScanProfileTweetsV1):
     pass
 
 
-TASKS_CLASSES = [InitialScanProfileTweetsV1, ReScanProfileTweetsV1]
+class ArchiveorgTweetV1(BaseTask):
+    userid: int
+    username: str
+    tweet_id: int
+
+
+TASKS_CLASSES = [InitialScanProfileTweetsV1, ReScanProfileTweetsV1, ArchiveorgTweetV1]

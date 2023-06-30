@@ -1,4 +1,5 @@
 import datetime
+from collections.abc import Sequence
 
 import procrastinate
 import pnytter
@@ -72,6 +73,20 @@ class Jobmanager(Service):
                 date_to_inc=datemonth.date_end_inclusive,
             )
             for datemonth in utils.daterange_by_month(date_from, date_to_inc)
+        ]
+
+        await utils.async_gather_limited(CREATETASK_CONCURRENCY_LIMIT, *[
+            self.new_task(task) for task in tasks
+        ])
+
+    async def create_tweets_archiveorg_tasks(self, userid: int, username: str, tweets_ids: Sequence[int]):
+        tasks = [
+            models.ArchiveorgTweetV1(
+                userid=userid,
+                username=username,
+                tweet_id=tweet_id
+            )
+            for tweet_id in tweets_ids
         ]
 
         await utils.async_gather_limited(CREATETASK_CONCURRENCY_LIMIT, *[

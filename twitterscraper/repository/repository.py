@@ -1,6 +1,6 @@
 import asyncio
 import datetime
-from typing import Iterable
+from collections.abc import Iterable, Iterator, Sequence
 
 import pydash
 import pnytter
@@ -58,8 +58,23 @@ class Repository(Service):
                 where(tables.Tweet.userid == userid).\
                 where(tables.Tweet.published_on >= date_from).\
                 where(tables.Tweet.published_on < date_to_exc)
+
             result = await session.execute(query)
             return list(result.scalars().fetchall())
+
+    async def get_tweets_not_archiveorg_enqueued(self, userid: int | None = None, batch_size: int = 1) -> Iterator[Sequence[tables.Tweet]]:
+        """Return tweets that are pending of being archived in Archive.org.
+        Method returns a generator that yields results in batches of `batch_size`."""
+        async with self.sessionmaker() as session:
+            query = sqlalchemy.select(tables.Tweet).\
+                where(tables.Tweet.archiveorg_url == None).\
+                where(tables.Tweet.archiveorg_scheduled == False)
+            if userid is not None:
+                query = query.where(tables.Tweet.userid == userid)
+
+            result = await session.execute(query)
+            # noinspection PyTypeChecker
+            return result.yield_per(batch_size)
 
     async def update_profile_last_scan(self, userid: int, date: datetime.date):
         async with self.sessionmaker() as session:
@@ -67,6 +82,7 @@ class Repository(Service):
                 values(**{
                     tables.Profile.lastscan_date.name: date,
                 })
+
             await session.execute(query)
             await session.commit()
 
@@ -123,6 +139,32 @@ class Repository(Service):
                 values(**{
                     tables.Tweet.deletion_detected_on.name: now,
                 })
+
+            await session.execute(query)
+            await session.commit()
+
+    async def update_archive_scheduled_tweets(self, tweets_ids: Iterable[int], userid: int | None = None):
+        async with self.sessionmaker() as session:
+            query = sqlalchemy.update(tables.Tweet).\
+                where(tables.Tweet.tweetid.in_(tweets_ids)).\
+                values(**{
+                    tables.Tweet.archiveorg_scheduled.name: True,
+                })
+            if userid is not None:
+                query = query.where(tables.Tweet.userid == userid)
+
+            await session.execute(query)
+            await session.commit()
+
+    async def update_tweet_archive_url(self, tweet_id: int, archive_url: str, userid: int | None = None):
+        async with self.sessionmaker() as session:
+            query = sqlalchemy.update(tables.Tweet).\
+                where(tables.Tweet.tweetid == tweet_id).\
+                values(**{
+                    tables.Tweet.archiveorg_url.name: archive_url,
+                })
+            if userid is not None:
+                query = query.where(tables.Tweet.userid == userid)
 
             await session.execute(query)
             await session.commit()
