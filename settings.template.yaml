@@ -1,43 +1,49 @@
-amqp:
-  # uri: Full URI to the AMQP server, with authentication, virtualhost and optionally a client name (connection_name)
-  uri: amqp://user:password@localhost:5672/twitter?client_properties={'connection_name':'twitterscraper'}
-  exchange: ''
-  queues:
-    fetchpersist:
-      name: fetchpersist
-      persistent: true
-      # workers: used as AMQP prefetch-count, this means the amount of concurrent messages processed by each process deployed
-      workers: 10
-    persistedreview:
-      name: persistedreview
-      persistent: true
-      workers: 10
+scraper:
+  users:
+    - username: elonmusk
+    - username: jack
+  http:
+    #proxies:
+    #  - "socks5://localhost:9050"
+    timeout: 15s
 
-twitter:
-  nitter_baseurl:
-    # Multiple nitter instances can be used. For each request, an instance is randomly chosen.
-    # The instances may be repeated to add priority to certain instances.
-    # For confirming removed tweets, all the instances are queried.
-    # PLEASE, self-host your own instance/s as well to avoid overloading public instances!
-    - https://nitter.net
-    - https://nitter.pussthecat.org
-    - https://nitter.eu
-    - https://nitter.namazso.eu
-    - https://nitter.hu
-    - https://nittereu.moomoo.me
-    - https://nitter.it
-  # nitter_timeout: timeout for HTTP requests to nitter, in seconds, allows decimals
-  nitter_timeout: 10
-  keys:
-    # Twitter API v2 keys
-    key: ...
-    secret: ...
-    token: ...
+schedulers:
+  tweet_scraper:
+    enabled: true
+    delay: 5m
+    jitter: 2m30s
+    initial:
+      delay: 2m
+      jitter: 1m30s
+  tweet_deleted:
+    enabled: true
+    concurrency_limit: 15
+    delay: 30m
+    jitter: 5m
+    initial:
+      delay: 1m30s
+      jitter: 30s
+  tweet_archiver:
+    enabled: true
+    concurrency_limit: 5
+    delay: 3m
+    jitter: 1m30s
 
 persistence:
-  # uri: Full URI to the SQL database.
-  # Only tested with Postgres, for other servers you may have to install the required Python client and modify the URI.
-  uri: postgresql+psycopg2://root:root@localhost:5432/root
-  # save_jobs: if true, persist jobs metadata on DB. This can have a performance impact, as each job is persisted,
-  # and on completion its timetimestamp is updated.
-  save_jobs: true
+  concurrency_limit: 2
+  mongodb:
+    uri: "mongodb://localhost:27017"
+    #uri: "mongodb://{user}:{password}@localhost:27017"
+    #authentication:
+    #  user: "admin"
+    #  password: "admin"
+    database: "twitterscraper"
+    collections:
+      #user_tweets: "tweets-{year}-{month}"
+      user_tweets: "tweets"
+      kv: "_kv"
+
+archivers:
+  archivetoday:
+    http:
+      timeout: 5m
