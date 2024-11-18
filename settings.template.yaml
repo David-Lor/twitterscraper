@@ -23,6 +23,11 @@ schedulers:
     initial:
       delay: 1m30s
       jitter: 30s
+    ensure_deleted:
+      enabled: true
+      retries: 15
+      delay: 10s
+      jitter: 5s
   tweet_archiver:
     enabled: true
     concurrency_limit: 5

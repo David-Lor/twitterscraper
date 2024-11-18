@@ -37,7 +37,7 @@ class SyndicationTwitterScraper(BaseTwitterScraper):
 
     async def tweet_exists(self, tweet_id: int | str) -> bool | None:
         async with http_client(self.http_settings, with_twitter_cookies=True) as client:
-            r = await client.get(f"https://publish.twitter.com/oembed?url=https%3A%2F%2Ftwitter.com%2F___%2Fstatus%2F{tweet_id}&partner=&hide_thread=false")
+            r = await client.get(f"https://publish.twitter.com/oembed?url=https%3A%2F%2Ftwitter.com%2F___%2Fstatus%2F{tweet_id}")
             if r.status_code == 404:
                 return False
             if r.status_code == 403:

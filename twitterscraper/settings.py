@@ -69,9 +69,17 @@ class ScraperSettings(pydantic.BaseModel):
     http: HttpSettings = pydantic.Field(default_factory=HttpSettings)
 
 
+class TweetDeletedSchedulerSettings(ScheduleWithConcurrency):
+
+    class EnsureDeleted(ScheduleWithConcurrencyDisabled):
+        retries: int = 10
+
+    ensure_deleted: EnsureDeleted | None = None
+
+
 class SchedulersSettings(pydantic.BaseModel):
     tweet_scraper: Schedule
-    tweet_deleted: ScheduleWithConcurrency
+    tweet_deleted: TweetDeletedSchedulerSettings
     tweet_archiver: ScheduleWithConcurrencyDisabled
 
 

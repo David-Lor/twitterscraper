@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 from .base import BaseScheduler
 from ..persistence.bootstrap import Repository
@@ -24,7 +25,7 @@ class TwitterUserScraper(BaseScheduler):
 
 
 class DeletedTweetsScraper(BaseScheduler):
-    TweetExistsResult = tuple[int, datetime.datetime]
+    TweetExistsResult = tuple[int, datetime.datetime | None]
 
     def __init__(self):
         self.schedule = Settings.get().schedulers.tweet_deleted
@@ -46,11 +47,34 @@ class DeletedTweetsScraper(BaseScheduler):
 
         await updater_pool.run()
 
-    async def _task_check_tweet(self, tweet_id: int) -> TweetExistsResult | None:
-        try:
-            print("Checking existence of tweet", tweet_id)
-            exists = await self.scraper.tweet_exists(tweet_id)
-            print("Tweet", tweet_id, "exists" if exists else "HAS BEEN DELETED")
-            return tweet_id, (None if exists else get_datetime_now())
-        except Exception as ex:
-            print(self.__class__.__name__, "ERROR", tweet_id, ex.__class__.__name__, ex)
+    async def _task_check_tweet(self, tweet_id: int) -> TweetExistsResult:
+        tries = 1
+        ensure_settings = self.schedule.ensure_deleted
+        when_deleted = None
+        if ensure_settings and ensure_settings.enabled:
+            tries += ensure_settings.retries
+
+        print("Checking existence of tweet", tweet_id)
+        for i in range(tries):
+            if i > 0:
+                delay = ensure_settings.get_delay_with_jitter()
+                print("Tweet", tweet_id, "Wait for", delay, "s before checking again")
+                await asyncio.sleep(delay)
+
+            try:
+                exists = await self.scraper.tweet_exists(tweet_id)
+                if exists:
+                    print("Tweet", tweet_id, "exists")
+                    return tweet_id, None
+
+                print("Tweet", tweet_id, "may have been DELETED")
+                if not when_deleted:
+                    when_deleted = get_datetime_now()
+
+            except Exception as ex:
+                print(self.__class__.__name__, "ERROR", tweet_id, ex.__class__.__name__, ex)
+                return tweet_id, None
+
+        # Retries exceeded, consider Deleted
+        print("Tweet", tweet_id, "identified as DELETED after", tries, "checks")
+        return tweet_id, when_deleted
