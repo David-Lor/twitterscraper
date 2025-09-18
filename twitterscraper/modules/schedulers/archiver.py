@@ -1,6 +1,7 @@
 from .base import BaseScheduler
 from ..archive.archivetoday import ArchiveToday
 from ..persistence.bootstrap import Repository
+from ..persistence.base import TweetFilters
 from ...settings import Settings
 from ...utils import AsyncPool
 
@@ -16,7 +17,8 @@ class TweetArchiver(BaseScheduler):
         print(self.scheduler_name, "Running")
         archiver_pool = AsyncPool(self.schedule.concurrency_limit)
 
-        async for tweet_id in Repository.get().iterate_all_tweets_ids(exclude_deleted=True, exclude_archived=True):
+        filters = TweetFilters(deleted=False, archived=False)
+        async for tweet_id in Repository.get().iterate_all_tweets_ids(filters):
             archiver_pool.add_task(self._task_archive_tweet(tweet_id))
 
         await archiver_pool.run()

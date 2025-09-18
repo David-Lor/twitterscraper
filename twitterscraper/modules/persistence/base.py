@@ -1,7 +1,13 @@
 import abc
 import datetime
+import pydantic
 from typing import AsyncGenerator
 from ...models.twitter import Tweet
+
+
+class TweetFilters(pydantic.BaseModel):
+    deleted: bool | None = None
+    archived: bool | None = None
 
 
 class BaseRepository(abc.ABC):
@@ -11,7 +17,7 @@ class BaseRepository(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def iterate_all_tweets_ids(self, exclude_deleted: bool = False, exclude_archived: bool = False) -> AsyncGenerator[int, None]:
+    def iterate_all_tweets_ids(self, filters: TweetFilters | None = None) -> AsyncGenerator[int, None]:
         # NOTE: Typed as def, but implemented as async
         pass
 
@@ -21,6 +27,10 @@ class BaseRepository(abc.ABC):
 
     @abc.abstractmethod
     async def mark_tweet_deleted(self, tweet_id: int, deleted_on: datetime.datetime):
+        pass
+
+    @abc.abstractmethod
+    async def unmark_tweet_deleted(self, tweet_id: int):
         pass
 
     @abc.abstractmethod

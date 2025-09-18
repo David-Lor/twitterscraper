@@ -39,6 +39,7 @@ class SyndicationTwitterScraper(BaseTwitterScraper):
         async with http_client(self.http_settings, with_twitter_cookies=True) as client:
             r = await client.get(f"https://publish.twitter.com/oembed?url=https%3A%2F%2Ftwitter.com%2F___%2Fstatus%2F{tweet_id}")
             if r.status_code == 404:
+                # Tweet not exists, or may be partially blocked/censured. Random false positives?
                 return False
             if r.status_code == 403:
                 # Account suspended

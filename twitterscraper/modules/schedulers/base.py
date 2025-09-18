@@ -1,5 +1,6 @@
 import abc
 import asyncio
+import time
 from ...settings import Schedule
 from ...utils import sleep_event
 
@@ -20,9 +21,17 @@ class BaseScheduler(abc.ABC):
             print(self.scheduler_name, "Initial Wait for", delay, "s")
             await sleep_event(self.stop_event, delay)
 
+        iteration = 0
         while not self.stop_event.is_set():
+            iteration += 1
+            start = time.time()
             try:
+                print(self.scheduler_name, "Running iteration #", iteration)
                 await self.run_loop()
+
+                elapsed = time.time() - start
+                print(self.scheduler_name, "Completed iteration #", iteration, "in", elapsed, "s")
+
             except Exception as ex:
                 print("Error", self.scheduler_name, ":", ex.__class__.__name__, ex)
 

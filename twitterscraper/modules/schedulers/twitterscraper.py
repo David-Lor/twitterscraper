@@ -2,6 +2,7 @@ import asyncio
 import datetime
 from .base import BaseScheduler
 from ..persistence.bootstrap import Repository
+from ..persistence.base import TweetFilters
 from ..twitter.scraper_syndication import SyndicationTwitterScraper
 from ...settings import User, Settings
 from ...utils import get_datetime_now, AsyncPool
@@ -26,6 +27,7 @@ class TwitterUserScraper(BaseScheduler):
 
 class DeletedTweetsScraper(BaseScheduler):
     TweetExistsResult = tuple[int, datetime.datetime | None]
+    _tweet_filters = TweetFilters(deleted=False)
 
     def __init__(self):
         self.schedule = Settings.get().schedulers.tweet_deleted
@@ -34,10 +36,9 @@ class DeletedTweetsScraper(BaseScheduler):
 
     async def run_loop(self):
         repository = Repository.get()
-        scraper_pool = AsyncPool(concurrency_limit=self.schedule.concurrency_limit)
-        updater_pool = AsyncPool(concurrency_limit=Settings.get().persistence.concurrency_limit)
+        scraper_pool, updater_pool = await self.get_scraper_updater_pools()
 
-        async for tweet_id in repository.iterate_all_tweets_ids(exclude_deleted=True):
+        async for tweet_id in repository.iterate_all_tweets_ids(self._tweet_filters):
             scraper_pool.add_task(self._task_check_tweet(tweet_id))
 
         await scraper_pool.run()
@@ -78,3 +79,33 @@ class DeletedTweetsScraper(BaseScheduler):
         # Retries exceeded, consider Deleted
         print("Tweet", tweet_id, "identified as DELETED after", tries, "checks")
         return tweet_id, when_deleted
+
+    async def get_scraper_updater_pools(self):
+        scraper_pool = AsyncPool(concurrency_limit=self.schedule.concurrency_limit)
+        updater_pool = AsyncPool(concurrency_limit=Settings.get().persistence.concurrency_limit)
+        return scraper_pool, updater_pool
+
+
+class RecheckDeletedTweetsScraper(DeletedTweetsScraper):
+    """Check persisted tweets marked as deleted to detect false positives (tweets detected as deleted but still exists),
+    in which case their deleted mark is removed.
+    """
+    _tweet_filters = TweetFilters(deleted=True)
+
+    def __init__(self):
+        super().__init__()
+        self.schedule = Settings.get().schedulers.tweet_deleted_recheck
+
+    async def run_loop(self):
+        repository = Repository.get()
+        scraper_pool, updater_pool = await self.get_scraper_updater_pools()
+
+        async for tweet_id in repository.iterate_all_tweets_ids(self._tweet_filters):
+            scraper_pool.add_task(self._task_check_tweet(tweet_id))
+
+        await scraper_pool.run()
+        for tweet_id, deleted_on in scraper_pool.results:
+            if not deleted_on:
+                updater_pool.add_task(repository.unmark_tweet_deleted(tweet_id))
+
+        await updater_pool.run()

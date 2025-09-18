@@ -28,6 +28,15 @@ schedulers:
       retries: 15
       delay: 10s
       jitter: 5s
+  tweet_deleted_recheck:
+    enabled: true
+    concurrency_limit: 15
+    delay: 1m
+    ensure_deleted:
+      enabled: true
+      retries: 10
+      delay: 5s
+      jitter: 5s
   tweet_archiver:
     enabled: true
     concurrency_limit: 5

@@ -2,7 +2,7 @@ import asyncio
 import datetime
 import pymongo.errors
 from motor.motor_asyncio import AsyncIOMotorClient
-from .base import BaseRepository
+from .base import BaseRepository, TweetFilters
 from ...models.twitter import Tweet
 from ...models.persistence import PartialPersistTweetDeleted, TweetArchive
 from ...settings import Settings
@@ -43,18 +43,8 @@ class MongoRepository(BaseRepository):
             if result:
                 return Tweet.model_validate(result)
 
-    async def iterate_all_tweets_ids(self, exclude_deleted=False, exclude_archived=False):
-        filters = []
-        if exclude_deleted:
-            filters.append({"when_deleted": None})
-        if exclude_archived:
-            filters.append({"$or": [
-                {"archives": None},
-                {"archives": {"$size": 0}}
-            ]})
-
-        filters = {"$and": filters} if filters else {}
-
+    async def iterate_all_tweets_ids(self, filters: TweetFilters | None = None):
+        filters = self.tweetfilters_to_mongo_filters(filters)
         for collection in await self.get_existing_user_tweets_collections():
             results_cursor = collection.find(
                 filters,
@@ -74,6 +64,16 @@ class MongoRepository(BaseRepository):
             )
             if result.modified_count:
                 print("Tweet", tweet_id, "in coll", collection.name, "Marked as deleted")
+                break
+
+    async def unmark_tweet_deleted(self, tweet_id: int):
+        for collection in await self.get_existing_user_tweets_collections():
+            result = await collection.update_one(
+                filter={Const.IdField: tweet_id},
+                update={"$unset": {"when_deleted": 1}},
+            )
+            if result.modified_count:
+                print("Tweet", tweet_id, "in coll", collection.name, "UNMARKED as deleted")
                 break
 
     async def mark_tweet_archived(self, tweet_id: int, archiver_name: str, archive_url: str, archive_time: datetime.datetime):
@@ -133,3 +133,20 @@ class MongoRepository(BaseRepository):
             return True
         except pymongo.errors.DuplicateKeyError:
             return False
+
+    @staticmethod
+    def tweetfilters_to_mongo_filters(tweet_filters: TweetFilters | None) -> dict:
+        if not tweet_filters:
+            return {}
+
+        mongo_filters = []
+        if tweet_filters.deleted is True:
+            mongo_filters.append({"when_deleted": {"$ne": None}})
+        if tweet_filters.deleted is False:
+            mongo_filters.append({"when_deleted": None})
+        if tweet_filters.archived is True:
+            mongo_filters.append({"when_archived": {"$ne": None}})
+        if tweet_filters.archived is False:
+            mongo_filters.append({"when_archived": None})
+
+        return {"$and": mongo_filters}

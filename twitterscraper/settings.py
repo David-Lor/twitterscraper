@@ -80,6 +80,7 @@ class TweetDeletedSchedulerSettings(ScheduleWithConcurrency):
 class SchedulersSettings(pydantic.BaseModel):
     tweet_scraper: Schedule
     tweet_deleted: TweetDeletedSchedulerSettings
+    tweet_deleted_recheck: TweetDeletedSchedulerSettings
     tweet_archiver: ScheduleWithConcurrencyDisabled
 
 
