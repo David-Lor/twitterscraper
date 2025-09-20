@@ -1,14 +1,16 @@
 import os
+import time
 import random
 import pathlib
 import yaml
 import pydantic
 from pydantic.functional_validators import BeforeValidator
 from typing_extensions import Annotated
-from .utils import parse_duration_to_seconds
+from .utils import parse_duration_to_seconds, parse_cron
 
 SETTINGS_FILE = os.getenv("SETTINGS_FILE", "settings.yaml")
 
+Cron = Annotated[str, BeforeValidator(parse_cron)]
 Duration = Annotated[float, BeforeValidator(parse_duration_to_seconds)]
 
 
@@ -25,25 +27,48 @@ class UserPassword(pydantic.BaseModel):
     password: pydantic.SecretStr
 
 
-class BaseSchedule(pydantic.BaseModel):
-    delay: Duration
-    jitter: Duration | None = None
+class Timer(pydantic.BaseModel):
+    model_config = pydantic.ConfigDict(arbitrary_types_allowed=True)
 
-    def get_delay_with_jitter(self):
+    delay: Duration | None = None
+    jitter: Duration | None = None
+    cron: str | None = None
+
+    def get_delay_with_jitter(self) -> float:
         diff = 0
         if self.jitter:
             diff = random.uniform(-self.jitter, self.jitter)
 
-        delay = self.delay + diff
-        if delay < 0:
-            delay = self.delay
+        delay = self.get_delay_to_next_cron() if self.cron else self.delay
+        delay_with_jitter = delay + diff
+        if delay_with_jitter < 0:
+            delay_with_jitter = delay
 
-        return delay
+        return delay_with_jitter
+
+    def get_delay_to_next_cron(self) -> float:
+        next_epoch = parse_cron(self.cron).get_next()
+        now_epoch = time.time()
+        return next_epoch - now_epoch
+
+    @pydantic.model_validator(mode="after")
+    @classmethod
+    def _validate(cls, data: "Timer"):
+        if not data.cron and not data.delay:
+            raise ValueError("No delay or cron specified")
+        return data
 
 
-class Schedule(BaseSchedule):
+class Schedule(Timer):
     enabled: bool = True
-    initial: BaseSchedule | None = None
+    initial: Timer | None = None
+
+    def get_initial_delay(self):
+        if self.cron:
+            return self.get_delay_to_next_cron()
+        if self.initial:
+            return self.initial.get_delay_with_jitter()
+        return 0
 
 
 class ScheduleWithConcurrency(Schedule):
@@ -158,3 +183,8 @@ class Settings(pydantic.BaseModel):
     @classmethod
     def get(cls):
         return cls.__singleton__
+
+
+def validate_cron(cron: str):
+    parse_cron(cron)
+    return cron

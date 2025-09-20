@@ -3,6 +3,7 @@ scraper:
     - username: elonmusk
     - username: jack
   http:
+    # Proxies: optional list of http/socks proxies to use. Each request choose a random proxy.
     #proxies:
     #  - "socks5://localhost:9050"
     timeout: 15s
@@ -11,8 +12,9 @@ schedulers:
   tweet_scraper:
     enabled: true
     delay: 5m
-    jitter: 2m30s
+    jitter: 2m30s  # Optional, Each delay is randomized with +/- "jitter"
     initial:
+      # Optional delay applied before the first run only
       delay: 2m
       jitter: 1m30s
   tweet_deleted:
@@ -31,7 +33,8 @@ schedulers:
   tweet_deleted_recheck:
     enabled: true
     concurrency_limit: 15
-    delay: 1m
+    cron: "0 0 * * *"  # Every day at 00:00h
+    jitter: 30m  # jitter is compatible with cron
     ensure_deleted:
       enabled: true
       retries: 10

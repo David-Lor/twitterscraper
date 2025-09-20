@@ -18,11 +18,12 @@ class BaseScheduler(abc.ABC):
                 await self.stop_event.wait()
                 return
 
-            if self.schedule.initial:
-                logger.info("Scheduler enabled")
-                delay = self.schedule.initial.get_delay_with_jitter()
-                logger.bind(delay_seconds=delay).debug(f"Initial wait")
-                await sleep_event(self.stop_event, delay)
+            logger.info("Scheduler enabled")
+
+            initial_delay = self.schedule.get_initial_delay()
+            if initial_delay > 0:
+                logger.bind(delay_seconds=initial_delay).debug(f"Initial wait")
+                await sleep_event(self.stop_event, initial_delay)
 
             iteration = 0
             while not self.stop_event.is_set():

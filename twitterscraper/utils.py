@@ -2,15 +2,17 @@ import uuid
 import base64
 import asyncio
 import datetime
+import croniter
 import pytimeparse
 import ujson as json
 import dateutil.parser
 from bs4 import BeautifulSoup
-from typing import Coroutine
+from typing import Any, Coroutine
 
 __all__ = [
     "json", "datetime",
-    "get_id", "get_datetime_now", "parse_datetime", "parse_duration_to_seconds", "html_parse", "sleep_event",
+    "get_id", "get_datetime_now", "parse_datetime", "parse_duration_to_seconds", "parse_cron",
+    "html_parse", "sleep_event",
     "AsyncPool"
 ]
 
@@ -23,12 +25,16 @@ def get_datetime_now():
     return datetime.datetime.now(tz=datetime.timezone.utc)
 
 
-def parse_duration_to_seconds(duration_str: str) -> int | float:
+def parse_duration_to_seconds(duration_str: Any) -> int | float:
     return pytimeparse.parse(duration_str)
 
 
 def parse_datetime(dt_str: str, **kwargs) -> datetime.datetime:
     return dateutil.parser.parse(dt_str, **kwargs)
+
+
+def parse_cron(cron: str) -> croniter.croniter:
+    return croniter.croniter(cron)
 
 
 def html_parse(src: str) -> BeautifulSoup:
