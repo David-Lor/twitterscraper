@@ -61,3 +61,12 @@ archivers:
   archivetoday:
     http:
       timeout: 5m
+
+log:
+  stdout:
+    enabled: true
+    level: debug
+  file:
+    enabled: false
+    level: debug
+    path: /tmp/twitterscraper.log

@@ -1,5 +1,6 @@
 import os
 import random
+import pathlib
 import yaml
 import pydantic
 from pydantic.functional_validators import BeforeValidator
@@ -121,11 +122,29 @@ class PersistenceSettings(pydantic.BaseModel):
     concurrency_limit: int = 10
 
 
+class LogSettings(pydantic.BaseModel):
+
+    class Stdout(pydantic.BaseModel):
+        enabled: bool = True
+        level: str = "INFO"
+        format: str | None = None
+
+    class File(pydantic.BaseModel):
+        enabled: bool = False
+        level: str = "DEBUG"
+        path: pathlib.Path
+
+    # LogSettings
+    stdout: Stdout = pydantic.Field(default_factory=Stdout)
+    file: File = pydantic.Field(default_factory=File)
+
+
 class Settings(pydantic.BaseModel):
     scraper: ScraperSettings
     persistence: PersistenceSettings
     schedulers: SchedulersSettings
     archivers: ArchiversSettings = pydantic.Field(default_factory=ArchiversSettings)
+    log: LogSettings = pydantic.Field(default_factory=LogSettings)
 
     @classmethod
     def load_from_file(cls):

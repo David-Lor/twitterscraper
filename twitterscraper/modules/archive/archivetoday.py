@@ -4,20 +4,21 @@ from .base import BaseArchiver, ArchivedResult
 from ..http import http_client, AsyncClient
 from ...settings import Settings
 from ...utils import html_parse, parse_datetime
+from ...logger import logger
 
 MEMENTO_PATTERN = r'<(https?://[^\s>]+)>;\s*rel="([^"]+)"(?:;\s*(\S+)="([^"]+)")?'
 
 
 class ArchiveToday(BaseArchiver):
 
+    # TODO Revisar, 429 continuamente
+
     def __init__(self):
         self.settings = Settings.get().archivers.archivetoday
 
     async def save(self, url: str) -> ArchivedResult:
         async with http_client(self.settings.http, follow_redirects=True) as client:
-            submitid = await self._parse_submitid(client)
-
-            params = dict(submitid=submitid, url=url)
+            params = dict(url=url)
             r = await client.get("https://archive.is/submit/", params=params)
             r.raise_for_status()
 
@@ -33,25 +34,21 @@ class ArchiveToday(BaseArchiver):
         return await self.save(url)
 
     async def _wait_for_archived_url(self, client: AsyncClient, refresh_url: str) -> ArchivedResult:
+        # TODO Add Retries limit
         while True:
             await asyncio.sleep(10)
 
-            print("Check if URL archived", refresh_url)
+            logger.bind(archive_refresh_url=refresh_url).debug("Waiting for URL archived")
             r = await client.get(refresh_url)
             r.raise_for_status()
 
             link = r.headers.get("Link")
             if link:
-                print("Found Link header! URL archived!", link)
-                return self._parse_memento(link)
+                logger.bind(archive_url=link).debug("URL archived successfully, parsing memento")
 
-    @staticmethod
-    async def _parse_submitid(client: AsyncClient):
-        r = await client.get("https://archive.is")
-        r.raise_for_status()
-
-        parser = html_parse(r.text)
-        return parser.find("input", attrs=dict(name="submitid")).get("value")
+                archive_result = self._parse_memento(link)
+                logger.bind(archive_result=archive_result).info("ArchiveResult")
+                return archive_result
 
     @staticmethod
     def _parse_memento(data: str) -> ArchivedResult:
@@ -63,7 +60,7 @@ class ArchiveToday(BaseArchiver):
                 snapshot_datetime = parse_datetime(param_value)
                 return url, snapshot_datetime
 
-        raise ValueError("no memento result found")
+        raise ValueError("No memento result found")
 
     @property
     def archiver_name(self):

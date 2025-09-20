@@ -6,6 +6,7 @@ from .base import BaseRepository, TweetFilters
 from ...models.twitter import Tweet
 from ...models.persistence import PartialPersistTweetDeleted, TweetArchive
 from ...settings import Settings
+from ...logger import logger
 
 
 class Const:
@@ -13,6 +14,11 @@ class Const:
     DataField = "data"
     CookiesDoc = "cookies"
     UserAgentsDoc = "userAgents"
+
+    class Fields:
+        WhenArchived = "when_archived"
+        WhenDeleted = "when_deleted"
+        Archives = "archives"
 
 
 class MongoRepository(BaseRepository):
@@ -34,14 +40,24 @@ class MongoRepository(BaseRepository):
             coroutines.append(self.insert_or_ignore_exists(collection, doc))
 
         results = await asyncio.gather(*coroutines)
-        inserted_count = sum(1 for result in results if result)
-        print("Written", inserted_count, "docs")
+
+        insert_count = sum(1 for result in results if result)
+        if insert_count:
+            logger.bind(insert_count=insert_count, input_count=len(tweets)).info("Saved tweets in Mongo")
+        else:
+            logger.bind(input_count=len(tweets)).debug("No new tweets to save in Mongo")
 
     async def get_tweet(self, tweet_id: int) -> Tweet | None:
-        for collection in await self.get_existing_user_tweets_collections():
-            result = await collection.find_one({Const.IdField: tweet_id})
-            if result:
-                return Tweet.model_validate(result)
+        with logger.contextualize(tweet_id=tweet_id):
+            for collection in await self.get_existing_user_tweets_collections():
+                with logger.contextualize(collection=collection.name):
+                    result = await collection.find_one({Const.IdField: tweet_id})
+                    if result:
+                        logger.trace("Tweet found in Mongo")
+                        return Tweet.model_validate(result)
+
+        logger.trace("Tweet not found in Mongo")
+        return None
 
     async def iterate_all_tweets_ids(self, filters: TweetFilters | None = None):
         filters = self.tweetfilters_to_mongo_filters(filters)
@@ -63,7 +79,7 @@ class MongoRepository(BaseRepository):
                 update={"$set": update},
             )
             if result.modified_count:
-                print("Tweet", tweet_id, "in coll", collection.name, "Marked as deleted")
+                logger.bind(tweet_id=tweet_id, collection=collection.name).debug("Tweet marked as Deleted in Mongo")
                 break
 
     async def unmark_tweet_deleted(self, tweet_id: int):
@@ -73,7 +89,7 @@ class MongoRepository(BaseRepository):
                 update={"$unset": {"when_deleted": 1}},
             )
             if result.modified_count:
-                print("Tweet", tweet_id, "in coll", collection.name, "UNMARKED as deleted")
+                logger.bind(tweet_id=tweet_id, collection=collection.name).debug("Removed tweet deletion mark in Mongo")
                 break
 
     async def mark_tweet_archived(self, tweet_id: int, archiver_name: str, archive_url: str, archive_time: datetime.datetime):
@@ -86,10 +102,10 @@ class MongoRepository(BaseRepository):
         for collection in await self.get_existing_user_tweets_collections():
             result = await collection.update_one(
                 filter={Const.IdField: tweet_id},
-                update={"$push": {"archives": archive_entry_doc}}
+                update={"$push": {Const.Fields.Archives: archive_entry_doc}}
             )
             if result.modified_count:
-                print("Tweet", tweet_id, "in coll", collection.name, "Added archive:", archive_entry_doc)
+                logger.bind(tweet_id=tweet_id, collection=collection.name).debug("Tweet marked as Archived in Mongo")
                 break
 
     async def get_twitter_cookies(self) -> list[dict]:
@@ -104,12 +120,6 @@ class MongoRepository(BaseRepository):
     async def get_kv_data_field(self, k: str):
         doc = await self.get_kv_doc(k)
         return doc[Const.DataField]
-
-    # async def find_tweet_document_by_id(self, tweet_id: int) -> dict | None:
-    #     for collection in await self.get_existing_user_tweets_collections():
-    #         doc = await collection.find_one({Const.IdField: tweet_id})
-    #         if doc:
-    #             return doc
 
     async def get_existing_user_tweets_collections(self):
         collections_names = await self.database.list_collection_names()
@@ -134,19 +144,21 @@ class MongoRepository(BaseRepository):
         except pymongo.errors.DuplicateKeyError:
             return False
 
+    # noinspection PySimplifyBooleanCheck
     @staticmethod
     def tweetfilters_to_mongo_filters(tweet_filters: TweetFilters | None) -> dict:
-        if not tweet_filters:
-            return {}
+        if tweet_filters:
+            mongo_filters = []
+            if tweet_filters.deleted is True:
+                mongo_filters.append({Const.Fields.WhenDeleted: {"$ne": None}})
+            if tweet_filters.deleted is False:
+                mongo_filters.append({Const.Fields.WhenDeleted: None})
+            if tweet_filters.archived is True:
+                mongo_filters.append({Const.Fields.WhenArchived: {"$ne": None}})
+            if tweet_filters.archived is False:
+                mongo_filters.append({Const.Fields.WhenArchived: None})
 
-        mongo_filters = []
-        if tweet_filters.deleted is True:
-            mongo_filters.append({"when_deleted": {"$ne": None}})
-        if tweet_filters.deleted is False:
-            mongo_filters.append({"when_deleted": None})
-        if tweet_filters.archived is True:
-            mongo_filters.append({"when_archived": {"$ne": None}})
-        if tweet_filters.archived is False:
-            mongo_filters.append({"when_archived": None})
+            if mongo_filters:
+                return {"$and": mongo_filters}
 
-        return {"$and": mongo_filters}
+        return {}

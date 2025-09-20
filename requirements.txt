@@ -7,3 +7,4 @@ ujson==5.11.0
 motor==3.7.1  # mongodb async client
 pytimeparse==1.1.8  # parse strings to timedelta
 python-dateutil==2.9.0.post0  # parse strings to datetime
+loguru==0.7.3

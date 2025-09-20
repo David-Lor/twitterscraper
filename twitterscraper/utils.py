@@ -1,3 +1,5 @@
+import uuid
+import base64
 import asyncio
 import datetime
 import pytimeparse
@@ -8,9 +10,13 @@ from typing import Coroutine
 
 __all__ = [
     "json", "datetime",
-    "get_datetime_now", "parse_datetime", "parse_duration_to_seconds", "html_parse", "sleep_event",
+    "get_id", "get_datetime_now", "parse_datetime", "parse_duration_to_seconds", "html_parse", "sleep_event",
     "AsyncPool"
 ]
+
+
+def get_id():
+    return base64.b64encode(uuid.uuid4().bytes).decode("utf-8").rstrip("=")
 
 
 def get_datetime_now():
@@ -26,6 +32,7 @@ def parse_datetime(dt_str: str, **kwargs) -> datetime.datetime:
 
 
 def html_parse(src: str) -> BeautifulSoup:
+    # TODO Remove if not required
     return BeautifulSoup(src, features="lxml")
 
 

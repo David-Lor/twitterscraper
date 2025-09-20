@@ -5,11 +5,13 @@ from twitterscraper.modules.schedulers.twitterscraper import TwitterUserScraper,
 from twitterscraper.modules.schedulers.archiver import TweetArchiver
 from twitterscraper.modules.schedulers.base import BaseScheduler
 from twitterscraper.settings import Settings
+from twitterscraper.logger import logger, setup_loggers
 
 
 async def amain():
     settings = Settings.load_from_file()
-    print("Settings:", settings.model_dump_json(indent=2))
+    setup_loggers(settings.log)
+    logger.info("Settings: " + settings.model_dump_json())
 
     await Repository.setup()
     schedulers: list[BaseScheduler] = [

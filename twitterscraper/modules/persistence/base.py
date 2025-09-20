@@ -18,7 +18,7 @@ class BaseRepository(abc.ABC):
 
     @abc.abstractmethod
     def iterate_all_tweets_ids(self, filters: TweetFilters | None = None) -> AsyncGenerator[int, None]:
-        # NOTE: Typed as def, but implemented as async
+        # NOTE: Typed as def but implemented as async
         pass
 
     @abc.abstractmethod

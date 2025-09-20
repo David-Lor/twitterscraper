@@ -2,7 +2,8 @@ import abc
 import asyncio
 import time
 from ...settings import Schedule
-from ...utils import sleep_event
+from ...utils import sleep_event, get_id
+from ...logger import logger
 
 
 class BaseScheduler(abc.ABC):
@@ -11,33 +12,39 @@ class BaseScheduler(abc.ABC):
         self.stop_event = asyncio.Event()
 
     async def run(self):
-        if not self.schedule.enabled:
-            print(self.scheduler_name, "is DISABLED")
-            await self.stop_event.wait()
-            return
+        with logger.contextualize(scheduler=self.scheduler_name):
+            if not self.schedule.enabled:
+                logger.info("Scheduler disabled")
+                await self.stop_event.wait()
+                return
 
-        if self.schedule.initial:
-            delay = self.schedule.initial.get_delay_with_jitter()
-            print(self.scheduler_name, "Initial Wait for", delay, "s")
-            await sleep_event(self.stop_event, delay)
+            if self.schedule.initial:
+                logger.info("Scheduler enabled")
+                delay = self.schedule.initial.get_delay_with_jitter()
+                logger.bind(delay_seconds=delay).debug(f"Initial wait")
+                await sleep_event(self.stop_event, delay)
 
-        iteration = 0
-        while not self.stop_event.is_set():
-            iteration += 1
-            start = time.time()
-            try:
-                print(self.scheduler_name, "Running iteration #", iteration)
-                await self.run_loop()
+            iteration = 0
+            while not self.stop_event.is_set():
+                iteration += 1
+                iteration_id = get_id()
+                start = time.time()
 
-                elapsed = time.time() - start
-                print(self.scheduler_name, "Completed iteration #", iteration, "in", elapsed, "s")
+                with logger.contextualize(iteration_count=iteration, iteration_id=iteration_id):
+                    # noinspection PyBroadException
+                    try:
+                        logger.debug("Running interation")
+                        await self.run_loop()
 
-            except Exception as ex:
-                print("Error", self.scheduler_name, ":", ex.__class__.__name__, ex)
+                        elapsed = time.time() - start
+                        logger.bind(elapsed_seconds=elapsed).debug("Completed iteration")
 
-            delay = self.schedule.get_delay_with_jitter()
-            print(self.scheduler_name, "Wait for", delay, "s")
-            await sleep_event(self.stop_event, delay)
+                    except Exception:
+                        logger.exception("Iteration failed")
+
+                    delay = self.schedule.get_delay_with_jitter()
+                    logger.bind(delay_seconds=delay).debug("Waiting for next iteration")
+                    await sleep_event(self.stop_event, delay)
 
     @abc.abstractmethod
     async def run_loop(self):

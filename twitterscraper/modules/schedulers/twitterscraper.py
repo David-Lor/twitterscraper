@@ -6,6 +6,7 @@ from ..persistence.base import TweetFilters
 from ..twitter.scraper_syndication import SyndicationTwitterScraper
 from ...settings import User, Settings
 from ...utils import get_datetime_now, AsyncPool
+from ...logger import logger
 
 
 class TwitterUserScraper(BaseScheduler):
@@ -14,15 +15,19 @@ class TwitterUserScraper(BaseScheduler):
         super().__init__(Settings.get().schedulers.tweet_scraper)
 
     async def run_loop(self):
-        print(self.scheduler_name, "Running")
-        results = await SyndicationTwitterScraper().get_user_tweets(self.user.username)
-        if results is not None:
-            print(self.scheduler_name, "Found", len(results), "tweets")
+        with logger.contextualize(twitter_username=self.user.username):
+            results = await SyndicationTwitterScraper().get_user_tweets(self.user.username)
+            if not results:
+                logger.debug("No tweets found")
+                return
+
+            logger.bind(tweets_count=len(results), _tweets_ids=list(results.keys())).\
+                debug("Found tweets")
             await Repository.get().save_tweets(*results.values())
 
     @property
     def scheduler_name(self):
-        return self.__class__.__name__ + "-" + self.user.get_alias_or_username()
+        return super().scheduler_name + "-" + self.user.get_alias_or_username()
 
 
 class DeletedTweetsScraper(BaseScheduler):
@@ -55,30 +60,33 @@ class DeletedTweetsScraper(BaseScheduler):
         if ensure_settings and ensure_settings.enabled:
             tries += ensure_settings.retries
 
-        print("Checking existence of tweet", tweet_id)
-        for i in range(tries):
-            if i > 0:
-                delay = ensure_settings.get_delay_with_jitter()
-                print("Tweet", tweet_id, "Wait for", delay, "s before checking again")
-                await asyncio.sleep(delay)
+        with logger.contextualize(tweet_id=tweet_id):
+            logger.debug("Checking existence of tweet")
+            for i in range(tries):
+                # todo contextualize tries
+                if i > 0:
+                    delay = ensure_settings.get_delay_with_jitter()
+                    logger.bind(delay_seconds=delay).debug("Waiting before re-checking tweet existence")
+                    await asyncio.sleep(delay)
 
-            try:
-                exists = await self.scraper.tweet_exists(tweet_id)
-                if exists:
-                    print("Tweet", tweet_id, "exists")
+                # noinspection PyBroadException
+                try:
+                    exists = await self.scraper.tweet_exists(tweet_id)
+                    if exists:
+                        logger.debug("Tweet exists")
+                        return tweet_id, None
+
+                    logger.debug("Tweet may have been Deleted")
+                    if not when_deleted:
+                        when_deleted = get_datetime_now()
+
+                except Exception:
+                    logger.exception("Error checking tweet existence")
                     return tweet_id, None
 
-                print("Tweet", tweet_id, "may have been DELETED")
-                if not when_deleted:
-                    when_deleted = get_datetime_now()
-
-            except Exception as ex:
-                print(self.__class__.__name__, "ERROR", tweet_id, ex.__class__.__name__, ex)
-                return tweet_id, None
-
-        # Retries exceeded, consider Deleted
-        print("Tweet", tweet_id, "identified as DELETED after", tries, "checks")
-        return tweet_id, when_deleted
+            # Retries exceeded, consider Deleted
+            logger.bind(tries_count=tries).info("Tweet identified as Deleted")
+            return tweet_id, when_deleted
 
     async def get_scraper_updater_pools(self):
         scraper_pool = AsyncPool(concurrency_limit=self.schedule.concurrency_limit)
