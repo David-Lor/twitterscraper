@@ -13,13 +13,11 @@ class Const:
     IdField = "_id"
     TweetIdRmField = "tweet_id"
     DataField = "data"
+    WhenArchivedField = "when_archived"
+    WhenDeletedField = "when_deleted"
+    ArchivesField = "archives"
     CookiesDoc = "cookies"
     UserAgentsDoc = "userAgents"
-
-    class Fields:
-        WhenArchived = "when_archived"
-        WhenDeleted = "when_deleted"
-        Archives = "archives"
 
 
 class MongoRepository(BaseRepository):
@@ -103,7 +101,7 @@ class MongoRepository(BaseRepository):
         for collection in await self.get_existing_user_tweets_collections():
             result = await collection.update_one(
                 filter={Const.IdField: tweet_id},
-                update={"$push": {Const.Fields.Archives: archive_entry_doc}}
+                update={"$push": {Const.ArchivesField: archive_entry_doc}}
             )
             if result.modified_count:
                 logger.bind(tweet_id=tweet_id, collection=collection.name).debug("Tweet marked as Archived in Mongo")
@@ -151,13 +149,13 @@ class MongoRepository(BaseRepository):
         if tweet_filters:
             mongo_filters = []
             if tweet_filters.deleted is True:
-                mongo_filters.append({Const.Fields.WhenDeleted: {"$ne": None}})
+                mongo_filters.append({Const.WhenDeletedField: {"$ne": None}})
             if tweet_filters.deleted is False:
-                mongo_filters.append({Const.Fields.WhenDeleted: None})
+                mongo_filters.append({Const.WhenDeletedField: None})
             if tweet_filters.archived is True:
-                mongo_filters.append({Const.Fields.WhenArchived: {"$ne": None}})
+                mongo_filters.append({Const.WhenArchivedField: {"$ne": None}})
             if tweet_filters.archived is False:
-                mongo_filters.append({Const.Fields.WhenArchived: None})
+                mongo_filters.append({Const.WhenArchivedField: None})
 
             if mongo_filters:
                 return {"$and": mongo_filters}
