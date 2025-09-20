@@ -11,6 +11,7 @@ from ...logger import logger
 
 class Const:
     IdField = "_id"
+    TweetIdRmField = "tweet_id"
     DataField = "data"
     CookiesDoc = "cookies"
     UserAgentsDoc = "userAgents"
@@ -35,8 +36,8 @@ class MongoRepository(BaseRepository):
         coroutines = list()
         for tweet in tweets:
             collection = self.get_collection_user_tweets(tweet.when_published)
-            doc = tweet.model_dump()
-            doc[Const.IdField] = tweet.tweet_id
+            doc = tweet.model_dump(mode="json")
+            doc[Const.IdField] = doc.pop(Const.TweetIdRmField)
             coroutines.append(self.insert_or_ignore_exists(collection, doc))
 
         results = await asyncio.gather(*coroutines)
@@ -129,7 +130,7 @@ class MongoRepository(BaseRepository):
             if collection_name.startswith("tweets-")
         ]
 
-    def get_collection_user_tweets(self, date: datetime.date | datetime.datetime):
+    def get_collection_user_tweets(self, date: datetime.date):
         # TODO Format from settings. Only allow aggregation by date
         return self.database[f"tweets-{date.year}-{date.month:02}"]
 
