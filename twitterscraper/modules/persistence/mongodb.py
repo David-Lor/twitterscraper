@@ -34,7 +34,7 @@ class MongoRepository(BaseRepository):
         coroutines = list()
         for tweet in tweets:
             collection = self.get_collection_user_tweets(tweet.when_published)
-            doc = tweet.model_dump(mode="json")
+            doc = tweet.model_dump(mode="python")
             doc[Const.IdField] = doc.pop(Const.TweetIdRmField)
             coroutines.append(self.insert_or_ignore_exists(collection, doc))
 
