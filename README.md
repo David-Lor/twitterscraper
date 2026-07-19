@@ -38,3 +38,20 @@ This project uses:
   - Workers: run constantly for processing incoming Jobs. One for each type of Job.
 
 The services Scheduler and all the Workers must be deployed for the platform to work. The Creator component is called on-demand.
+
+## Xquik Export Import
+
+`twitterscraper.services.xquik_export` can normalize [Xquik](https://xquik.com)
+JSON, JSONL, or CSV tweet exports into dictionaries that match the scraper's
+persisted tweet fields:
+
+```python
+from twitterscraper.services.xquik_export import normalize_xquik_export
+
+tweets = normalize_xquik_export(raw_export, "tweets.jsonl")
+```
+
+The importer reads common text fields such as `text`, `tweet`, `full_text`, `content`, and `body`, derives tweet IDs from ID fields or status URLs, and marks replies when reply or conversation metadata is present.
+
+Xquik is an independent third-party service. Not affiliated with X Corp.
+"Twitter" and "X" are trademarks of X Corp.
